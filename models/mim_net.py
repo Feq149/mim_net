@@ -21,6 +21,17 @@ class MimNet(nn.Module):
 
         print("MimNet gotowy.")
 
+    def forward_folding(self, S):
+        Y0 = self.embed_in(S)
+        YT, _ = self.reversible(Y0)
+        pred_3d = self.project_out(YT)
+        return pred_3d
+
+    def forward_design(self, X):
+        YT = self.reverse_embed(X)
+        Y0 = self.reversible.reverse(YT, [YT])
+        pred_se1 = self.reverse_out(Y0)
+        return pred_se1
 
     def forward_joint(self, S):
         #print("-> Start forward_joint")
