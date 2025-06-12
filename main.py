@@ -24,13 +24,9 @@ if __name__ == "__main__":
     dataloaders = scn.load(casp_version=12, with_pytorch="dataloaders",casp_thinning="scnmin",)
     train_loader = dataloaders['train']
     print("Dane załadowane.")
-
-    # Model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MimNet(in_channels=40, nf=128, T=6, n_levels=3).to(device)
     optimizer = torch_optim.Adam(model.parameters(), lr=LR)
-
-    # Trening
     for epoch in range(1, EPOCHS + 1):
         model.train()
         total_loss = 0
@@ -53,10 +49,6 @@ if __name__ == "__main__":
             true_seq = torch.cat([one_hot_encoding, pssm], dim=1)  # (B, 40, L)
             coords_ca = coords[:, :, 1, :].float().to(device)  # (B, L, 3)
             true_3d = coords_ca.permute(0, 2, 1).contiguous()  # (B, 3, L)
-
-
-            #print("S_true mean:", S_true.mean().item())
-            #print("X_true mean:", X_true.mean().item())
             mask = batch.masks.float().to(device)  # (B, L)
 
 
