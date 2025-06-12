@@ -1,6 +1,9 @@
-import torch
-import sidechainnet as scn
-import torch.optim as torch_optim
+import torch # type: ignore
+import sidechainnet as scn # type: ignore
+import torch.optim as torch_optim # type: ignore
+from torch.utils.tensorboard import SummaryWriter # type: ignore
+import os
+
 
 from models.mim_net import MimNet
 from train.losses import design_loss, folding_loss, regularization_total_var
@@ -21,12 +24,18 @@ if __name__ == "__main__":
 
     # Dane
     print("Ładowanie danych")
-    dataloaders = scn.load(casp_version=12, with_pytorch="dataloaders",casp_thinning="scnmin",)
-    train_loader = dataloaders['train']
+    dataloaders = scn.load(casp_version=7, with_pytorch="dataloaders", batch_size=16)  # mały batch_size, żeby cuda dała radę
+    train_loader = dataloaders["train"]
     print("Dane załadowane.")
+
+    # Model
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MimNet(in_channels=40, nf=128, T=6, n_levels=3).to(device)
     optimizer = torch_optim.Adam(model.parameters(), lr=LR)
+
+    # Logi
+    writer = SummaryWriter("logs")
+
     for epoch in range(1, EPOCHS + 1):
         model.train()
         total_loss = 0
@@ -34,7 +43,9 @@ if __name__ == "__main__":
         design_total = 0
 
         for i, batch in enumerate(train_loader):
-            #batch = sanitize_batch(batch)
+
+            #batch = sanitize_batch(batch) # nie ma potrzeby jeśli pssm działa
+
             one_hot_encoding = batch.seqs_onehot.permute(0, 2, 1).float().to(device)  # (B, 20, L)
             pssm = torch.nan_to_num(batch.evolutionary, nan=0.0)
             coords = torch.nan_to_num(batch.coords, nan=0.0)
@@ -62,7 +73,7 @@ if __name__ == "__main__":
             # print_nan_stats("coords_ca", coords_ca)
             # print_nan_stats("mask", mask)
             # exit(0)
-            M = mask.unsqueeze(1) * mask.unsqueeze(2)#bo część danych jest nan lub zera lun dziury, broadcasting pytorcha in action
+            M = mask.unsqueeze(1) * mask.unsqueeze(2) # bo część danych jest nan lub zera lub dziury, broadcasting pytorcha in action
             #print("M sum:", M.sum().item())
 
             optimizer.zero_grad()
@@ -86,21 +97,25 @@ if __name__ == "__main__":
             #     exit(0)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-
-
             optimizer.step()
 
             total_loss += loss.item()
             fold_total += fold_loss.item()
+            design_total += des_loss.item()
+
+            writer.add_scalar("Loss/train", loss.item(), epoch * len(train_loader) + i)
+
             #print("fold_loss:", fold_loss.item())
             #print("design_loss:", des_loss.item())
-
-            design_total += des_loss.item()
 
             if (i + 1) % 100 == 0:
                 print(
                     f"[Epoch {epoch} | Batch {i + 1}] Loss: {loss.item():.4f} | Folding: {fold_loss.item():.4f} | Design: {des_loss.item():.4f}")
 
-        avg_loss = total_loss / (i + 1)
+        avg_loss = total_loss / (i) # type: ignore
         print(
-            f"=====> Epoch {epoch} done. Avg Loss: {avg_loss:.4f}, Folding: {fold_total / (i + 1):.4f}, Design: {design_total / (i + 1):.4f}")
+            f"=====> Epoch {epoch} done. Avg Loss: {avg_loss:.4f}, Folding: {fold_total / (i):.4f}, Design: {design_total / (i):.4f}") # type: ignore
+
+    writer.close()
+    os.makedirs("checkpoints", exist_ok=True)
+    torch.save(model.state_dict(), "checkpoints/mimnet_model.pth")
