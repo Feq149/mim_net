@@ -34,7 +34,7 @@ if __name__ == "__main__":
     val_loader = dataloaders["test"]
 
     model = MimNet(in_channels=40, nf=128, T=6, n_levels=3).to(device)
-    checkpoint_path = "checkpoints/mimnet_model.pth"
+    checkpoint_path = "checkpoints/mimnet_model_with_reg.pth"
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
 
     evaluate(model, val_loader, device)
