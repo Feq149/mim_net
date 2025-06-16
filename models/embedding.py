@@ -1,6 +1,6 @@
-import torch
 import torch.nn as nn
 
+# mapowanie S \cup S+ do nf
 class InputEmbedding(nn.Module):
     def __init__(self, in_channels: int, nf: int):
         super().__init__()
@@ -9,7 +9,7 @@ class InputEmbedding(nn.Module):
     def forward(self, x):
         return self.embed(x)
 
-
+# mapowanie nf do 3D
 class OutputProjection(nn.Module):
     def __init__(self, nf: int):
         super().__init__()
@@ -19,6 +19,7 @@ class OutputProjection(nn.Module):
         return self.project(x)
 
 
+# cofamy się z 3D do nf
 class ReverseEmbedding(nn.Module):
     def __init__(self, nf: int):
         super().__init__()
@@ -27,7 +28,7 @@ class ReverseEmbedding(nn.Module):
     def forward(self, x):
         return self.embed(x)
 
-
+# wracamy do S \cup S+
 class ReverseOutput(nn.Module):
     def __init__(self, nf: int, out_channels: int = 40):
         super().__init__()

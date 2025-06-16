@@ -1,1 +1,1 @@
-# mim_net
+# Mimetic Networks
