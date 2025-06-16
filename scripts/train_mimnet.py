@@ -50,9 +50,7 @@ if __name__ == "__main__":
             # Straty
             fold_loss = folding_loss(expected_3d, true_3d, M)
             des_loss = design_loss(expected_seq, true_seq)
-            rev_params = [p for p in model.reversible.parameters() if p.requires_grad]
-            reg_loss = regularization_total_var(rev_params)
-            reg_loss = 0 # na razie nie używamy regularizacji, bo nie rozumiemy
+            reg_loss = regularization_total_var(model.reversible.f_blocks)
 
             # Suma strat
             loss = fold_loss + des_loss + BETA * reg_loss

@@ -20,9 +20,11 @@ def design_loss(predicted, target):
     true = target.transpose(1, 2)    # (batch_size, seq_len, 40)
     return F.kl_div(F.log_softmax(pred, dim=-1), true, reduction='sum')
 
-def regularization_total_var(params):
+def regularization_total_var(f_blocks):
     tv = 0.0
-    for i in range(len(params) - 1):
-        if params[i].shape == params[i+1].shape:
-            tv += torch.sum(torch.abs(params[i+1] - params[i])) # nie mam pojęcia jak autorzy to zrobili
+    for i in range(len(f_blocks) - 1):
+        params1 = list(f_blocks[i].parameters())
+        params2 = list(f_blocks[i+1].parameters())
+        for p1, p2 in zip(params1, params2):
+             tv += torch.sum(torch.abs(p2 - p1))
     return tv
