@@ -7,66 +7,73 @@ from models.graph_convolution import GraphConvBlock
 
 
 class GraphUNetLevel(nn.Module):
-    def __init__(self, nf):
+    def __init__(self, nf, coarse=0):
         super().__init__()
-        self.gcn = GraphConvBlock(nf, nf)
+        self.gcn = GraphConvBlock(nf, nf, coarse)
 
     def forward(self, Y, L):
         Y = self.gcn(Y, L)
         return Y
 
 class GraphUNet(nn.Module):
-    #unet - mamy warstwy. chcemy przekrztałcić nasze dane przez t warstw - u nas 3, bo tak było w pracy
-    #Ładujemy dane, na każdej warstwie robimy konwolucja, laplasjan, konwolucja, po czym przy downsamplingu
-    #łączymy sąsiednie cechy zwykłą średnią. Potem przy upsamplingu bierzemy na danej warstwie oryginalne cechy
-    #, dodajemy do tych które uzyskaliśmy z niższej warstwy (po prostu swykły plus), po czym klasyk,
-    #konwolucja laplasjan konolucja.
+    # UNet - mamy warstwy. Chcemy przekształcić nasze dane przez n_levels warstw - u nas 3, bo tak było w pracy
+    # Ładujemy dane, na każdej warstwie robimy konwolucja, laplasjan, konwolucja, po czym przy downsamplingu
+    # łączymy sąsiednie cechy zwykłą średnią. Potem przy upsamplingu bierzemy na danej warstwie oryginalne cechy
+    # dodajemy do tych które uzyskaliśmy z niższej warstwy (po prostu zwykły plus), po czym klasyk,
+    # konwolucja laplasjan kownolucja.
     def __init__(self, nf, n_levels):
         super().__init__()
         self.n_levels = n_levels
-        self.down_blocks = nn.ModuleList([GraphUNetLevel(nf) for _ in range(n_levels)])
-        self.up_blocks = nn.ModuleList([GraphUNetLevel(nf) for _ in range(n_levels)])
+        self.down_blocks = nn.ModuleList([GraphUNetLevel(nf, 0) for _ in range(n_levels - 1)])
+        self.up_blocks = nn.ModuleList([GraphUNetLevel(nf, 1) for _ in range(n_levels - 1)])
         self.pool = nn.AvgPool1d(kernel_size=2, stride=2)
         self.upsample = nn.Upsample(scale_factor=2, mode='linear', align_corners=False)
+        self.coarsest_level = GraphUNetLevel(nf, 0)  # ostatni poziom bez downsamplingu
 
     def forward(self, Y):
         downs = []
         graphs = []
+        sizes = []
+
+        # print(Y.shape)  # (B, 128, L)
+
         # DOWN SAMPLING
-        for i in range(self.n_levels):
+        for i in range(self.n_levels - 1):
             D = pairwise_distance_matrix(Y)
             W = build_weight_matrix(D)
             L = build_laplacian(W)
             graphs.append(L)
-            Y = self.down_blocks[i](Y, L)#wywołanie forward, syntax jest taki że się forward nie pisze xd
+            Y = self.down_blocks[i](Y, L) # wywołanie forward, syntax jest taki że się forward nie pisze xd
             downs.append(Y)
-            if Y.shape[-1] >= 2:#bo nie można połączyć dwóch rzeczy jak jest tylko jedna rzecz
+            sizes.append(Y.shape[-1])  # zapamiętujemy rozmiar, żeby potem dopasować
+            if sizes[-1] >= 2:
                 Y = self.pool(Y)
 
-        # BOTTOM (najgłębszy poziom)
+        # BOTTOM (najgłębszy poziom) - ma być 2 razy GCN
         D = pairwise_distance_matrix(Y)
         W = build_weight_matrix(D)
         L = build_laplacian(W)
-        Y = self.down_blocks[-1](Y, L)
+        Y = self.coarsest_level(Y, L)
+        D = pairwise_distance_matrix(Y)
+        W = build_weight_matrix(D)
+        L = build_laplacian(W)
+        Y = self.coarsest_level(Y, L)
+
 
         # UP SAMPLING
-        for i in reversed(range(self.n_levels)):
-            Y = self.upsample(Y)
-
+        for i in reversed(range(self.n_levels - 1)):
             # Dopasuj długość przez przycięcie lub padding, bo upsample niekoniecznie zwróci długość dokładnie
-            #równą oryginałowi
-            down_len = downs[i].shape[2]
-            up_len = Y.shape[2]
+            # równą oryginałowi
+            target_len = sizes[i]
+            up_len = Y.shape[-1]
 
-            if up_len > down_len:
-                Y = Y[:, :, :down_len] #trzeba sciac idk
-            elif up_len < down_len:
-                pad_len = down_len - up_len
+            if up_len > target_len:
+                Y = Y[:, :, :target_len] # trzeba ściąć idk
+            elif up_len < target_len:
+                pad_len = target_len - up_len
                 Y = F.pad(Y, (0, pad_len))  # padding z tyłu
 
-
-
-            Y = Y + downs[i]  # skip connection
+            Y = Y + downs[i]  # pomijamy połączenie
 
             Y = self.up_blocks[i](Y, graphs[i])
 

@@ -13,8 +13,8 @@ class MimNet(nn.Module):
         self.embed_in = InputEmbedding(in_channels, nf)
         self.reverse_embed = ReverseEmbedding(nf)
 
-        self.unet = GraphUNet(nf, n_levels)
-        self.reversible = ReversibleBlock(self.unet, T=T)
+        self.unets = nn.ModuleList([GraphUNet(nf, n_levels) for _ in range(T)])
+        self.reversible = ReversibleBlock(self.unets, T=T)
 
         self.project_out = OutputProjection(nf)
         self.reverse_out = ReverseOutput(nf)
@@ -41,7 +41,6 @@ class MimNet(nn.Module):
         #print("   Przejście przez ReversibleBlock zakończone.")
         expected_3d = self.project_out(YT)
         #print("   OutputProjection zakończony.")
-
         Y0_recon = self.reversible.reverse(YT, states)
         #print("   Reverse ReversibleBlock zakończony.")
         expected_seq = self.reverse_out(Y0_recon)
