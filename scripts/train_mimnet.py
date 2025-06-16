@@ -11,7 +11,7 @@ from train.utils import process_batch
 
 if __name__ == "__main__":
 
-    EPOCHS = 200  # liczba epok
+    EPOCHS = 50  # liczba epok
     LR = 1e-4  # learning rate
     BETA = 1e-4  # waga regularizacji
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     optimizer = torch_optim.Adam(model.parameters(), lr=LR)
 
     # Logi
-    writer = SummaryWriter("logs/mimnet-train")
+    writer = SummaryWriter("logs/mimnet-train-without-regularization")  # type: ignore
 
     for epoch in range(1, EPOCHS + 1):
         model.train()
@@ -52,6 +52,7 @@ if __name__ == "__main__":
             des_loss = design_loss(expected_seq, true_seq)
             rev_params = [p for p in model.reversible.parameters() if p.requires_grad]
             reg_loss = regularization_total_var(rev_params)
+            reg_loss = 0 # na razie nie używamy regularizacji, bo nie rozumiemy
 
             # Suma strat
             loss = fold_loss + des_loss + BETA * reg_loss
@@ -80,4 +81,4 @@ if __name__ == "__main__":
 
     writer.close()
     os.makedirs("checkpoints", exist_ok=True)
-    torch.save(model.state_dict(), "checkpoints/mimnet_model.pth")
+    torch.save(model.state_dict(), "checkpoints/mimnet_model_without_reg.pth")

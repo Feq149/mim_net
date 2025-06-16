@@ -23,5 +23,6 @@ def design_loss(predicted, target):
 def regularization_total_var(params):
     tv = 0.0
     for i in range(len(params) - 1):
-        tv += torch.sum(torch.abs(params[i+1] - params[i]))
+        if params[i].shape == params[i+1].shape:
+            tv += torch.sum(torch.abs(params[i+1] - params[i])) # nie mam pojęcia jak autorzy to zrobili
     return tv
